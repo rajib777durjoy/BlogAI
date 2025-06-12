@@ -27,6 +27,7 @@ const BlogsPage = () => {
     const [Text, SetText] = useState('');
     const [TextTitle, setTextTitle] = useState('');
     const [Description, setDescription] = useState('')
+    const [GeminiImg, setGeminiImg] = useState('')
     const {
         register,
         handleSubmit,
@@ -35,46 +36,68 @@ const BlogsPage = () => {
     } = useForm()
     const onSubmit = async (data) => {
         // console.log('onsubmit for form hook')
-        const ImageFile = { image: data?.Image[0] }
-
-        //  if(!ImageFile){
-        //     return ;
-        //  }
-        // console.log('data', data?.Image[0])
-        const res = await axios.post(Image_API_KEY, ImageFile, {
+        const formData = new FormData();
+        formData.append('image', data?.Image[0])
+        console.log('formData:', formData)
+        const res = await axios.post(Image_API_KEY, formData, {
             headers: {
-                'content-type': 'multipart/form-data'
+                'Content-Type': 'multipart/form-data'
             }
         })
         // console.log('image response', res.data.data.display_url)
-        const information = {
-            title: data?.title,
-            description: data?.description,
-            image: res.data?.data?.display_url,
-            userId: user?.userId,
-            like: 0,
-            comment: 0,
-        }
-        // console.log("information", information)
-        const response = await Axiosinstance.post(`/blogPost/${user?.userId}`, information);
-        // console.log('response:', response)
-        if (response.data.data.insertedId > 0) {
 
-            Swal.fire({
-                position: "top-end",
-                icon: "success",
-                title: "Your work has been saved",
-                showConfirmButton: false,
-                timer: 1500
-            });
+        if (res?.data?.data?.display_url) {
+            const information = {
+                title: data?.title,
+                description: data?.description,
+                image: res.data?.data?.display_url,
+                userId: user?.userId,
+                like: 0,
+                comment: 0,
+            }
+            const response = await Axiosinstance.post(`/blogPost/${user?.userId}`, information);
+            // console.log('response:', response)
+            if (response.data.data.insertedId > 0) {
+                Swal.fire({
+                    position: "top-end",
+                    icon: "success",
+                    title: "Your work has been saved",
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+            }
         }
+
+        //    Gemini Generate Images post
+        if (!res?.data?.data?.display_url) {
+            const information = {
+                title: data?.title,
+                description: data?.description,
+                image: GeminiImg,
+                userId: user?.userId,
+                like: 0,
+                comment: 0,
+            }
+            const response = await Axiosinstance.post(`/blogPost/${user?.userId}`, information);
+            // console.log('response:', response)
+            if (response.data.data.insertedId > 0) {
+                Swal.fire({
+                    position: "top-end",
+                    icon: "success",
+                    title: "Your work has been saved",
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+            }
+        }
+
     }
     const handlesubmitText = async (e) => {
         e.preventDefault();
         setAI_Text('')
         console.log('handlesubmitText call:')
         const text = e.target.GeminiText.value;
-        const res = await Axiosinstance.get(`/Gemini/textGenarate?text=${text}`,{})
+        const res = await Axiosinstance.get(`/Gemini/textGenarate?text=${text}`, {})
         // console.log('gemini response:', res.data.result)
         if (res?.data?.result) {
             setAI_Text(res.data.result)
@@ -82,10 +105,19 @@ const BlogsPage = () => {
         }
 
     }
+    const handleImageGenerateFun = async (e) => {
+        e.preventDefault()
+        const data = e.target.ImagePrompt.value;
+        const Image = await Axiosinstance.get(`/Gemini/ImageGenerate?imgText=${data}`, { responseType: 'blob' })
+        // console.log('image_Data:',Image.data);
+        const imageUrl = URL.createObjectURL(Image.data);
+        console.log('imageurl:', imageUrl);
+        setGeminiImg(imageUrl)
+    }
     return (
         <>
             <div className='w-[100%]'>
-                {/* First form Start */}
+                {/*-------------------- First  form Start------------------------- */}
                 <form onSubmit={handleSubmit(onSubmit)} className="bg-base-300 p-10 rounded-xl shadow-md w-[70%] mx-auto mt-4">
                     <div className="flex flex-col-reverse gap-3 min-h-[300px]">
                         <textarea
@@ -102,19 +134,20 @@ const BlogsPage = () => {
                         ></textarea>
                         <div className='flex w-[100%] items-center gap-4'>
                             <input
+                                defaultValue={Text}
                                 {...register("title", {
                                     onChange: (e) => {
                                         setTextTitle(e.target.value)
                                         console.log('title:', e.target.value)
                                     }
-                                })} 
+                                })}
                                 className='w-[95%] h-[40px] px-2 ' type='text' placeholder='Enter the title' /><button onClick={() => document.getElementById('my_modal_5').showModal()} type='button' className='btn rounded-full'>AI<RiGeminiFill className='text-2xl' /></button>
                         </div>
 
                     </div>
                     <div className="flex justify-between mt-2">
                         <input {...register("Image")} type="file" className="file-input" />
-                        <button className='btn flex items-center'>Generate Image <RiAiGenerate2 className='text-lg' /></button>
+                        <button onClick={() => document.getElementById('my_modal_1').showModal()} type='button' className='btn flex items-center'>Generate Image <RiAiGenerate2 className='text-lg' /></button>
                     </div>
                     <div className='flex justify-between py-4'>
                         <button
@@ -133,11 +166,11 @@ const BlogsPage = () => {
                         </button>
                     </div>
                 </form>
-                {/* First form Close */}
+                {/* --------------------First  form Close---------------------------------- */}
             </div>
             {/* -----------------------------------------------------------------------------------*/}
 
-            {/* --------------------Second Form Start------------------- */}
+            {/* --------------------Second Modal Form Start------------------- */}
             <dialog id="my_modal_5" className="modal  modal-bottom sm:modal-middle">
                 <form onSubmit={handlesubmitText} method="dialog" className='w-[600px] p-2  bg-base-300 rounded-lg'>
                     <textarea onChange={(e) => {
@@ -152,9 +185,28 @@ const BlogsPage = () => {
                     </div>
                 </form>
             </dialog>
-            {/* --------------------Second Form Close------------------- */}
+            {/* --------------------Second Modal Form Close------------------- */}
+
+            {/*-------------------- Third Modal from start----------------- */}
+            <dialog id="my_modal_1" className="modal  modal-bottom sm:modal-middle">
+                <form onSubmit={handleImageGenerateFun} method="dialog" className='w-[600px] p-2  bg-base-300 rounded-lg'>
+                    <textarea onChange={(e) => {
+
+                    }} rows={5} className='w-[100%] border-0 p-2 ' name="ImagePrompt" placeholder='Ask Anythink' id=""></textarea>
+                    <div className='w-[100px] h-[100px]  my-5'>
+                        <img src={GeminiImg} alt="image show" className='w-[90%] h-[90%] mt-1 mx-auto  rounded-md ' />
+                    </div>
+
+                    <div className='flex justify-between items-center'>
+                        <div onClick={() => {
+                            document.getElementById('my_modal_5').close()
+                        }} className="px-5 py-2 rounded-md bg-slate-300 font-bold">Close</div>
+                        <button  type='submit' className='btn bg-blue-500 text-white font-bold'>Generate</button>
+                    </div>
+                </form>
+            </dialog>
         </>
-           );
+    );
 };
 
 export default BlogsPage;
